@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boggle Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Boggle Game</h1>
+        <div class="board">
+            {% for row in board %}
+                {% for letter in row %}
+                    <div class="tile">{{ letter }}</div>
+                {% endfor %}
+            {% endfor %}
+        </div>
+        <form id="guess-form">
+            <input type="text" id="word-input" placeholder="Enter your guess" required>
+            <input type="submit" value="Submit">
+        </form>
+        <div id="result" class="result-message"></div>
+        <div class="score">Score: <span id="current-score">0</span></div>
+        <div id="timer" class="timer">Time Remaining: <span id="time-remaining">60</span> seconds</div>
+    </div>
+
+    <script>
+        class BoggleGame {
+            constructor() {
+                this.totalScore = 0;
+                this.timeRemaining = 60;
+                this.timerId = null;
+                this.wordsUsed = new Set();
+            }
+        
+            startGame() {
+                this.updateTimer();
+                this.timerId = setInterval(() => this.updateTimer(), 1000);
+            }
+        
+            updateTimer() {
+                const timerDiv = document.getElementById('timer');
+                if (this.timeRemaining > 0) {
+                    timerDiv.textContent = `Time Remaining: ${this.timeRemaining} seconds`;
+                    this.timeRemaining--;
+                } else {
+                    clearInterval(this.timerId);
+                    this.endGame();
+                }
+            }
+        
+            endGame() {
+                document.getElementById('word-input').disabled = true;
+                document.getElementById('guess-form').querySelector('input[type="submit"]').disabled = true;
+                document.getElementById('timer').textContent = "Time's up!";
+                this.sendScore();
+            }
+        
+            sendScore() {
+                axios.post('/end-game', { score: this.totalScore })
+                    .then(response => {
+                        console.log('Game statistics updated:', response.data);
+                    })
+                    .catch(error => {
+                        console.error('Error updating game statistics:', error);
+                    });
+            }
+        
+            submitWord(word) {
+                if (this.wordsUsed.has(word)) {
+                    alert('Word already used!');
+                    return;
+                }
+                
+                axios.post('/check-word', { word: word })
+                    .then(response => {
+                        const resultDiv = document.getElementById('result');
+                        const scoreDiv = document.getElementById('current-score');
+
+                        if (response.data.result === 'ok') {
+                            this.totalScore += word.length;  
+                            this.wordsUsed.add(word);  
+                            resultDiv.textContent = 'Valid word!';
+                            scoreDiv.textContent = this.totalScore;
+                        } else if (response.data.result === 'not-on-board') {
+                            resultDiv.textContent = 'Not on the board.';
+                        } else {
+                            resultDiv.textContent = 'Not a valid word.';
+                        }
+
+                        document.getElementById('word-input').value = '';  
+                    })
+                    .catch(error => {
+                        console.error('Error checking word:', error);
+                    });
+            }
+        }
+        
+        const game = new BoggleGame();
+        game.startGame();
+        
+        document.getElementById('guess-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const word = document.getElementById('word-input').value;
+            game.submitWord(word);
+        });
+    </script>
+</body>
+</html>
